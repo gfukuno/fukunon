@@ -118,21 +118,30 @@
   <script>
     // ★ここにステップ1で取得したスプレッドシートの公開CSV URLを貼り付けます
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQF0xDAv2p9GHjgCggolTmmv2MEK2mxsKMx4xu1EPy8pzeS2bPhd66GgYRDU8TINYHWNJ0CciDKo24s/pub?gid=0&single=true&output=csv';
-
+  
     const codeInput = document.getElementById('code');
     const btn = document.getElementById('btn');
     const msg = document.getElementById('msg');
 
-    // 画面がリセットされたり戻ったりしたときの初期化関数
-    function resetButtonState() {
+    // ボタンとメッセージを強制的に初期状態に戻す関数
+    function enableButton() {
       btn.disabled = false;
+      btn.removeAttribute('disabled');
       btn.innerText = '開く';
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+    }
+
+    function resetButton() {
+      enableButton();
       msg.innerText = '';
     }
 
-    // ★入力欄に文字を打つ・消すなどの変化があったら、即座にボタンをアクティブに戻す
-    codeInput.addEventListener('input', function() {
-      resetButtonState();
+    // ★入力欄に触れたり、文字を消したり打ったりした瞬間に必ずボタンを復帰させる
+    ['input', 'keyup', 'change', 'paste', 'focus'].forEach(function(evt) {
+      codeInput.addEventListener(evt, function() {
+        resetButton();
+      });
     });
 
     // Enterキーでも送信
@@ -142,17 +151,27 @@
       }
     });
 
-    // ★ブラウザの「戻る」ボタンで戻ってきたときに自動で初期化
+    // ★「戻る」でページに戻ってきた瞬間に発火（iOS Safari / Android Chrome 両対応）
     window.addEventListener('pageshow', function(event) {
-      resetButtonState();
-      codeInput.value = ''; // 入力欄を自動でクリア（空にする）
-      codeInput.focus();
+      enableButton();
+      codeInput.value = ''; // 入力欄をクリア
+      msg.innerText = '';
+      setTimeout(function() {
+        codeInput.focus();
+      }, 100);
+    });
+
+    // ページ初回読み込み時にも確実に有効化
+    window.addEventListener('DOMContentLoaded', function() {
+      resetButton();
     });
 
     async function submitCode() {
       const rawCode = codeInput.value.trim();
       if (!rawCode) {
+        msg.style.color = '#d93025';
         msg.innerText = '番号を入力してください';
+        enableButton();
         return;
       }
 
@@ -200,17 +219,23 @@
         if (targetUrl) {
           msg.style.color = '#188038';
           msg.innerText = 'フォームへ移動します...';
+          
+          // ★遷移直前にボタンを戻しておく（戻るで戻ったときにdisabledが残るのを防止）
+          setTimeout(function() {
+            enableButton();
+          }, 500);
+
           window.location.href = targetUrl;
         } else {
           msg.style.color = '#d93025';
           msg.innerText = `該当する番号「${code}」のフォームが見つかりません`;
-          resetButtonState(); // 間違えた番号のときもすぐ再入力できるようにする
+          enableButton();
         }
       } catch (err) {
         console.error(err);
         msg.style.color = '#d93025';
         msg.innerText = `エラー: ${err.message}`;
-        resetButtonState();
+        enableButton();
       }
     }
 
