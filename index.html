@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>授業アンケート・小テスト</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    body {
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .card {
+      background: #ffffff;
+      width: 100%;
+      max-width: 380px;
+      padding: 30px 24px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      text-align: center;
+    }
+    h2 {
+      font-size: 1.25rem;
+      color: #1a1a1a;
+      margin-bottom: 8px;
+    }
+    p.desc {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 24px;
+    }
+    .input-box {
+      margin-bottom: 20px;
+    }
+    input[type="tel"] {
+      width: 100%;
+      height: 60px;
+      font-size: 2rem;
+      font-weight: bold;
+      text-align: center;
+      letter-spacing: 10px;
+      border: 2px solid #dcdfe6;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="tel"]:focus {
+      border-color: #1a73e8;
+    }
+    button {
+      width: 100%;
+      height: 52px;
+      background: #1a73e8;
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
+      transition: background 0.2s, transform 0.1s;
+    }
+    button:active {
+      background: #1557b0;
+      transform: scale(0.98);
+    }
+    button:disabled {
+      background: #a8c7fa;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    #msg {
+      margin-top: 16px;
+      font-size: 0.85rem;
+      color: #d93025;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>ミニットペーパーへGO！</h2>
+    <p class="desc">スライドに表示された <strong>4桁の番号</strong> を入力してください</p>
+
+    <div class="input-box">
+      <input type="tel" id="code" maxlength="4" placeholder="----" autofocus autocomplete="off">
+    </div>
+
+    <button id="btn" onclick="submitCode()">開く</button>
+    <div id="msg"></div>
+  </div>
+
+  <script>
+    // ★ここにステップ1で取得したスプレッドシートの公開CSV URLを貼り付けます
+    const CSV_URL = https://docs.google.com/spreadsheets/d/e/2PACX-1vQF0xDAv2p9GHjgCggolTmmv2MEK2mxsKMx4xu1EPy8pzeS2bPhd66GgYRDU8TINYHWNJ0CciDKo24s/pub?gid=0&single=true&output=csv;
+
+    const codeInput = document.getElementById('code');
+    const btn = document.getElementById('btn');
+    const msg = document.getElementById('msg');
+
+    codeInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        submitCode();
+      }
+    });
+
+    async function submitCode() {
+      const rawCode = codeInput.value.trim();
+      if (!rawCode) {
+        msg.innerText = '番号を入力してください';
+        return;
+      }
+
+      // 全角数字を半角数字に自動変換
+      const code = rawCode.replace(/[０-９]/g, function(s) {
+        return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+      });
+
+      msg.style.color = '#666';
+      msg.innerText = '確認中...';
+      btn.disabled = true;
+
+      try {
+        // キャッシュを防ぐためタイムスタンプを付与してCSVを取得
+        const response = await fetch(`${CSV_URL}&_t=${Date.now()}`);
+        if (!response.ok) throw new Error('スプレッドシートの取得に失敗しました');
+        
+        const text = await response.text();
+        const rows = parseCSV(text);
+        
+        let targetUrl = null;
+        // 2行目以降（データ部）を検索
+        for (let i = 1; i < rows.length; i++) {
+          const rowCode = rows[i][0] ? rows[i][0].trim() : '';
+          const rowUrl = rows[i][1] ? rows[i][1].trim() : '';
+          if (rowCode === code && rowUrl) {
+            targetUrl = rowUrl;
+            break;
+          }
+        }
+
+        if (targetUrl) {
+          msg.style.color = '#188038';
+          msg.innerText = 'フォームへ移動します...';
+          window.location.href = targetUrl;
+        } else {
+          msg.style.color = '#d93025';
+          msg.innerText = `該当する授業・テストが見つかりません（番号：${code}）`;
+          btn.disabled = false;
+        }
+      } catch (err) {
+        console.error(err);
+        msg.style.color = '#d93025';
+        msg.innerText = '通信エラーが発生しました。もう一度お試しください。';
+        btn.disabled = false;
+      }
+    }
+
+    // 簡易CSVパース関数（カンマや引用符に対応）
+    function parseCSV(text) {
+      const lines = text.trim().split(/\r?\n/);
+      return lines.map(line => {
+        const values = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') {
+            inQuotes = !inQuotes;
+          } else if (c === ',' && !inQuotes) {
+            values.push(cur);
+            cur = '';
+          } else {
+            cur += c;
+          }
+        }
+        values.push(cur);
+        return values;
+      });
+    }
+  </script>
+</body>
+</html>
