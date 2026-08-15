@@ -123,10 +123,30 @@
     const btn = document.getElementById('btn');
     const msg = document.getElementById('msg');
 
+    // 画面がリセットされたり戻ったりしたときの初期化関数
+    function resetButtonState() {
+      btn.disabled = false;
+      btn.innerText = '開く';
+      msg.innerText = '';
+    }
+
+    // ★入力欄に文字を打つ・消すなどの変化があったら、即座にボタンをアクティブに戻す
+    codeInput.addEventListener('input', function() {
+      resetButtonState();
+    });
+
+    // Enterキーでも送信
     codeInput.addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         submitCode();
       }
+    });
+
+    // ★ブラウザの「戻る」ボタンで戻ってきたときに自動で初期化
+    window.addEventListener('pageshow', function(event) {
+      resetButtonState();
+      codeInput.value = ''; // 入力欄を自動でクリア（空にする）
+      codeInput.focus();
     });
 
     async function submitCode() {
@@ -136,7 +156,7 @@
         return;
       }
 
-      // 全角数字を半角数字に自動変換
+      // 全角数字を半角に自動変換
       const code = rawCode.replace(/[０-９]/g, function(s) {
         return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
       });
@@ -144,21 +164,34 @@
       msg.style.color = '#666';
       msg.innerText = '確認中...';
       btn.disabled = true;
+      btn.innerText = '接続中...';
 
       try {
-        // キャッシュを防ぐためタイムスタンプを付与してCSVを取得
-        const response = await fetch(`${CSV_URL}&_t=${Date.now()}`);
-        if (!response.ok) throw new Error('スプレッドシートの取得に失敗しました');
+        if (!CSV_URL || CSV_URL.includes('YOUR_CSV_URL_HERE')) {
+          throw new Error('CSVのURLが設定されていません');
+        }
+
+        const delimiter = CSV_URL.includes('?') ? '&' : '?';
+        const fetchUrl = `${CSV_URL}${delimiter}_t=${Date.now()}`;
+
+        const response = await fetch(fetchUrl);
+        if (!response.ok) {
+          throw new Error(`シート取得エラー (HTTP ${response.status})`);
+        }
         
         const text = await response.text();
         const rows = parseCSV(text);
+
+        if (rows.length === 0) {
+          throw new Error('スプレッドシートにデータがありません');
+        }
         
         let targetUrl = null;
-        // 2行目以降（データ部）を検索
-        for (let i = 1; i < rows.length; i++) {
-          const rowCode = rows[i][0] ? rows[i][0].trim() : '';
-          const rowUrl = rows[i][1] ? rows[i][1].trim() : '';
-          if (rowCode === code && rowUrl) {
+        for (let i = 0; i < rows.length; i++) {
+          const rowCode = rows[i][0] ? String(rows[i][0]).trim() : '';
+          const rowUrl = rows[i][1] ? String(rows[i][1]).trim() : '';
+          
+          if (rowCode === code && rowUrl.startsWith('http')) {
             targetUrl = rowUrl;
             break;
           }
@@ -170,18 +203,17 @@
           window.location.href = targetUrl;
         } else {
           msg.style.color = '#d93025';
-          msg.innerText = `該当するミニットペーパーが...な、ない（番号：${code}）`;
-          btn.disabled = false;
+          msg.innerText = `該当する番号「${code}」のフォームが見つかりません`;
+          resetButtonState(); // 間違えた番号のときもすぐ再入力できるようにする
         }
       } catch (err) {
         console.error(err);
         msg.style.color = '#d93025';
-        msg.innerText = '通信エラーが発生しました。もう一度お試しください。';
-        btn.disabled = false;
+        msg.innerText = `エラー: ${err.message}`;
+        resetButtonState();
       }
     }
 
-    // 簡易CSVパース関数（カンマや引用符に対応）
     function parseCSV(text) {
       const lines = text.trim().split(/\r?\n/);
       return lines.map(line => {
