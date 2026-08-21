@@ -63,11 +63,9 @@
       transition: border-color 0.2s;
     }
     
-    /* 入力枠にフォーカスが当たったときの枠線も黒に */
     input[type="tel"]:focus {
       border-color: #1a1a1a;
     }
-    /* ボタンの通常時：引き締まった黒 */
     button {
       width: 100%;
       height: 52px;
@@ -81,12 +79,10 @@
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       transition: background 0.2s, transform 0.1s;
     }
-    /* タップ（クリック）時：少し濃い黒 */
     button:active {
       background: #000000;
       transform: scale(0.98);
     }
-    /* 読み込み中・無効時：落ち着いたグレー */
     button:disabled {
       background: #8e8e93;
       cursor: not-allowed;
@@ -98,6 +94,7 @@
       font-size: 0.85rem;
       color: #d93025;
       min-height: 20px;
+      line-height: 1.4;
     }
   </style>
 </head>
@@ -116,14 +113,13 @@
   </div>
 
   <script>
-    // ★ここにステップ1で取得したスプレッドシートの公開CSV URLを貼り付けます
+    // マスター管理スプレッドシートの公開CSV URL
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQF0xDAv2p9GHjgCggolTmmv2MEK2mxsKMx4xu1EPy8pzeS2bPhd66GgYRDU8TINYHWNJ0CciDKo24s/pub?gid=0&single=true&output=csv';
   
     const codeInput = document.getElementById('code');
     const btn = document.getElementById('btn');
     const msg = document.getElementById('msg');
 
-    // ボタンとメッセージを強制的に初期状態に戻す関数
     function enableButton() {
       btn.disabled = false;
       btn.removeAttribute('disabled');
@@ -137,31 +133,27 @@
       msg.innerText = '';
     }
 
-    // ★入力欄に触れたり、文字を消したり打ったりした瞬間に必ずボタンを復帰させる
     ['input', 'keyup', 'change', 'paste', 'focus'].forEach(function(evt) {
       codeInput.addEventListener(evt, function() {
         resetButton();
       });
     });
 
-    // Enterキーでも送信
     codeInput.addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         submitCode();
       }
     });
 
-    // ★「戻る」でページに戻ってきた瞬間に発火（iOS Safari / Android Chrome 両対応）
     window.addEventListener('pageshow', function(event) {
       enableButton();
-      codeInput.value = ''; // 入力欄をクリア
+      codeInput.value = '';
       msg.innerText = '';
       setTimeout(function() {
         codeInput.focus();
       }, 100);
     });
 
-    // ページ初回読み込み時にも確実に有効化
     window.addEventListener('DOMContentLoaded', function() {
       resetButton();
     });
@@ -178,7 +170,7 @@
       // 全角数字を半角に自動変換
       const code = rawCode.replace(/[０-９]/g, function(s) {
         return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
-      });
+      }).replace(/\s+/g, '');
 
       msg.style.color = '#666';
       msg.innerText = '確認中...';
@@ -207,8 +199,9 @@
         
         let targetUrl = null;
         for (let i = 0; i < rows.length; i++) {
+          // A列: タイムスタンプ(0), B列: 4桁番号(1), C列: フォームURL(2)
           const rowCode = rows[i][1] ? String(rows[i][1]).trim() : '';
-          const rowUrl = rows[i][2] ? String(rows[i][2]).trim() : '';
+          const rowUrl  = rows[i][2] ? String(rows[i][2]).trim() : '';
           
           if (rowCode === code && rowUrl.startsWith('http')) {
             targetUrl = rowUrl;
@@ -220,7 +213,6 @@
           msg.style.color = '#188038';
           msg.innerText = 'フォームへ移動します...';
           
-          // ★遷移直前にボタンを戻しておく（戻るで戻ったときにdisabledが残るのを防止）
           setTimeout(function() {
             enableButton();
           }, 500);
