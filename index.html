@@ -193,7 +193,7 @@
         const delimiter = CSV_URL.includes('?') ? '&' : '?';
         const fetchUrl = `${CSV_URL}${delimiter}_t=${Date.now()}`;
 
-        const response = await fetch(fetchUrl);
+        const response = await fetch(fetchUrl, { cache: 'no-store' });
         if (!response.ok) {
           throw new Error(`シート取得エラー (HTTP ${response.status})`);
         }
